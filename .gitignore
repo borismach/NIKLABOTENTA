@@ -1,0 +1,48 @@
+# Arduino IDE
+*.autosave
+*.backup
+*.bak
+*.tmp
+*~
+
+# Build outputs
+build/
+*.hex
+*.elf
+*.bin
+*.map
+
+# IDE specific
+.vscode/
+.idea/
+*.code-workspace
+
+# Platform IO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Python (if using tools)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+
+# Testing
+test/build/
+*.test
+
+# Credentials and secrets
+secrets.h
+credentials.h
+config_private.h

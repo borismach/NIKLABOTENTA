@@ -1,0 +1,63 @@
+#######################################
+# Syntax Coloring Map for NIKLABOTENTA
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+NIKLABOTENTA	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+# Initialization
+begin	KEYWORD2
+
+# Movement
+drive	KEYWORD2
+move	KEYWORD2
+rotate	KEYWORD2
+brake	KEYWORD2
+stop	KEYWORD2
+get_speed	KEYWORD2
+
+# IMU
+get_orientation	KEYWORD2
+get_roll	KEYWORD2
+get_pitch	KEYWORD2
+get_yaw	KEYWORD2
+get_imu	KEYWORD2
+get_quaternion	KEYWORD2
+get_magnetometer	KEYWORD2
+calibrate_imu	KEYWORD2
+get_imu_calibration_status	KEYWORD2
+
+# Servo
+set_servo_position	KEYWORD2
+get_servo_position	KEYWORD2
+
+# Vision
+detect_line	KEYWORD2
+get_line_position	KEYWORD2
+detect_color	KEYWORD2
+detect_object	KEYWORD2
+get_distance	KEYWORD2
+
+# LED
+set_led_color	KEYWORD2
+led_off	KEYWORD2
+
+# Power
+get_battery_voltage	KEYWORD2
+is_charging	KEYWORD2
+
+# Utility
+set_debug	KEYWORD2
+get_version	KEYWORD2
+is_simulation_mode	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
