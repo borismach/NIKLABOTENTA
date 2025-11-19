@@ -2,13 +2,13 @@
  * @file NIKLABOTENTA.cpp
  * @brief Implementation of NIKLABOTENTA robot library
  * @author Boris Mach
- * @version 0.3.0
+ * @version 0.4.0
  */
 
 #include "NIKLABOTENTA.h"
 
 // Library version
-#define NIKLABOTENTA_VERSION "0.3.0"
+#define NIKLABOTENTA_VERSION "0.4.0"
 
 // Default robot configuration (can be customized)
 #define DEFAULT_WHEELBASE_CM 15.0f        // 15cm between wheels
@@ -24,6 +24,7 @@ NIKLABOTENTA::NIKLABOTENTA() :
     _simulation_mode(true),  // Default to simulation mode
     _drive_system(nullptr),
     _imu(nullptr),
+    _camera(nullptr),
     _wheelbase_cm(DEFAULT_WHEELBASE_CM),
     _wheel_diameter_mm(DEFAULT_WHEEL_DIAMETER_MM),
     _left_speed(0.0f),
@@ -54,6 +55,9 @@ NIKLABOTENTA::NIKLABOTENTA() :
 
     // Create IMU interface (default I2C address 0x28)
     _imu = new BNO055_Interface(55, 0x28, _simulation_mode);
+
+    // Create camera interface
+    _camera = new NiclaVision_Interface(_simulation_mode);
 }
 
 NIKLABOTENTA::~NIKLABOTENTA() {
@@ -68,6 +72,11 @@ NIKLABOTENTA::~NIKLABOTENTA() {
     if (_imu) {
         delete _imu;
         _imu = nullptr;
+    }
+
+    if (_camera) {
+        delete _camera;
+        _camera = nullptr;
     }
 }
 
@@ -123,20 +132,42 @@ bool NIKLABOTENTA::begin() {
         }
     }
 
+    // Initialize Nicla Vision camera
+    if (_camera) {
+        _debug_print("Initializing Nicla Vision camera...");
+        bool camera_init = _camera->begin();
+
+        if (!camera_init && !_simulation_mode) {
+            _debug_print("WARNING: Camera initialization failed");
+            // Continue anyway - camera is optional
+        } else {
+            if (_simulation_mode) {
+                _debug_print("Camera initialized (simulation mode)");
+            } else {
+                _debug_print("Camera initialized successfully");
+            }
+        }
+    }
+
     // In simulation mode, set calibration
     // In real hardware mode, additional components to initialize:
-    // - Nicla Vision camera
     // - Servo controllers
     // - LED controllers
 
     if (_simulation_mode) {
         _debug_print("Running in SIMULATION mode");
         _imu_calibration = 3;  // Pretend fully calibrated in simulation
+
+        // Set simulated line for testing
+        if (_camera) {
+            _camera->set_simulated_line(true, 0.0f);  // Line at center
+            _camera->set_simulated_color(255, 0, 0);  // Red
+        }
     } else {
         _debug_print("Initializing hardware...");
-        // TODO: Initialize real hardware in future phases
-        // - Configure camera
+        // TODO: Initialize real hardware
         // - Setup servo PWM
+        // - Configure LED
     }
 
     _initialized = true;
@@ -497,35 +528,63 @@ float NIKLABOTENTA::get_servo_position(uint8_t servo_id) {
 // ============================================
 
 bool NIKLABOTENTA::detect_line() {
-    // In simulation, return simulated state
-    // In real mode, process camera image for line detection
-    return _line_detected;
+    if (_camera) {
+        // Update camera and detect line
+        _camera->update();
+        LineDetection line = _camera->detect_line();
+
+        // Update internal state
+        _line_detected = line.detected;
+        _line_position = line.position;
+
+        return line.detected;
+    }
+
+    // Fallback if no camera
+    return false;
 }
 
 float NIKLABOTENTA::get_line_position() {
-    // Return cached line position
-    return _line_position;
+    if (_camera) {
+        return _camera->get_line_position();
+    }
+
+    return _line_position;  // Fallback to cached value
 }
 
 bool NIKLABOTENTA::detect_color(uint8_t& r, uint8_t& g, uint8_t& b) {
-    // In simulation, return simulated color
+    if (_camera) {
+        // Update camera and detect color
+        _camera->update();
+        return _camera->get_detected_color(r, g, b);
+    }
+
+    // Fallback: simulated gray
     r = 128;
     g = 128;
     b = 128;
-
-    // In real mode, capture image and analyze color
-    return true;
+    return false;
 }
 
 bool NIKLABOTENTA::detect_object() {
-    // In simulation, return false
-    // In real mode, use camera for object detection
+    if (_camera) {
+        // Update camera and detect object
+        _camera->update();
+        ObjectDetection obj = _camera->detect_object();
+        return obj.detected;
+    }
+
+    // Fallback if no camera
     return false;
 }
 
 float NIKLABOTENTA::get_distance() {
-    // In simulation, return simulated distance
-    // In real mode, read from Nicla Vision proximity sensor
+    if (_camera) {
+        // Use camera proximity sensor
+        return _camera->get_proximity();
+    }
+
+    // Fallback: simulated distance
     return 50.0f;  // cm
 }
 

@@ -27,9 +27,17 @@ Build your own Alvik-compatible robot with more powerful hardware:
 - **Raw Sensor Access** - Direct access to all 9-axis data
 - **Magnetometer** - Absolute heading/compass functionality
 
+### Phase 4: Nicla Vision Camera ✅
+- **Line Detection** - Real-time line following with position tracking
+- **Color Recognition** - RGB detection with HSV conversion and color naming
+- **Object Detection** - Basic blob detection and tracking
+- **Proximity Sensor** - Distance measurement (0-30cm typical range)
+- **Simulation Mode** - Test vision algorithms without hardware
+- **Camera Control** - Brightness, contrast, and frame capture
+
 ### Planned Features
-- Camera-based line following and object detection (Phase 4)
 - Servo control and LED management
+- Advanced computer vision (QR codes, face detection)
 - Extensible architecture
 
 ## Hardware Requirements
@@ -83,6 +91,23 @@ robot.get_quaternion(qw, qx, qy, qz);
 // Get raw sensor data
 float ax, ay, az, gx, gy, gz;
 robot.get_imu(ax, ay, az, gx, gy, gz);  // accel + gyro
+```
+
+### Computer Vision
+```cpp
+// Line detection (for line following)
+bool line_found = robot.detect_line();
+float line_pos = robot.get_line_position();  // -1.0 (left) to 1.0 (right)
+
+// Color detection
+uint8_t r, g, b;
+if (robot.detect_color(r, g, b)) {
+    // Use detected color (red, green, blue values)
+}
+
+// Object detection and distance
+bool object_found = robot.detect_object();
+float distance = robot.get_distance();  // cm (proximity sensor)
 ```
 
 See [examples/](examples/) for more demonstrations.
