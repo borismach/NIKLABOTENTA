@@ -2,13 +2,17 @@
  * @file NIKLABOTENTA.cpp
  * @brief Implementation of NIKLABOTENTA robot library
  * @author Boris Mach
- * @version 0.1.0
+ * @version 0.2.0
  */
 
 #include "NIKLABOTENTA.h"
 
 // Library version
-#define NIKLABOTENTA_VERSION "0.1.0"
+#define NIKLABOTENTA_VERSION "0.2.0"
+
+// Default robot configuration (can be customized)
+#define DEFAULT_WHEELBASE_CM 15.0f        // 15cm between wheels
+#define DEFAULT_WHEEL_DIAMETER_MM 65.0f   // 65mm wheel diameter
 
 // ============================================
 // CONSTRUCTOR / DESTRUCTOR
@@ -18,6 +22,9 @@ NIKLABOTENTA::NIKLABOTENTA() :
     _initialized(false),
     _debug_enabled(false),
     _simulation_mode(true),  // Default to simulation mode
+    _drive_system(nullptr),
+    _wheelbase_cm(DEFAULT_WHEELBASE_CM),
+    _wheel_diameter_mm(DEFAULT_WHEEL_DIAMETER_MM),
     _left_speed(0.0f),
     _right_speed(0.0f),
     _current_x(0.0f),
@@ -38,11 +45,21 @@ NIKLABOTENTA::NIKLABOTENTA() :
     for (uint8_t i = 0; i < MAX_SERVOS; i++) {
         _servo_positions[i] = 90.0f;
     }
+
+    // Create differential drive system
+    _drive_system = new DifferentialDrive(_wheelbase_cm,
+                                         _wheel_diameter_mm,
+                                         _simulation_mode);
 }
 
 NIKLABOTENTA::~NIKLABOTENTA() {
-    // Cleanup if needed
+    // Cleanup
     stop();
+
+    if (_drive_system) {
+        delete _drive_system;
+        _drive_system = nullptr;
+    }
 }
 
 // ============================================
@@ -57,9 +74,31 @@ bool NIKLABOTENTA::begin() {
 
     _debug_print("Initializing NIKLABOTENTA...");
 
+    // Initialize differential drive system
+    // Default pin configuration (can be customized for your hardware)
+    // Left motor: pins 2 (fwd), 3 (bwd)
+    // Right motor: pins 4 (fwd), 5 (bwd)
+    // Left encoder: pins 6 (A), 7 (B)
+    // Right encoder: pins 8 (A), 9 (B)
+    // Encoder resolution: 1000 ticks/rev (typical for hobby motor encoders)
+
+    if (_drive_system) {
+        bool drive_init = _drive_system->begin(
+            2, 3,    // Left motor forward/backward
+            4, 5,    // Right motor forward/backward
+            6, 7,    // Left encoder A/B
+            8, 9,    // Right encoder A/B
+            1000     // Encoder ticks per revolution
+        );
+
+        if (!drive_init) {
+            _debug_print("ERROR: Drive system initialization failed");
+            return false;
+        }
+    }
+
     // In simulation mode, just set the flag
     // In real hardware mode, initialize actual components:
-    // - Motor controllers
     // - BNO055 IMU
     // - Nicla Vision camera
     // - Servo controllers
@@ -72,8 +111,8 @@ bool NIKLABOTENTA::begin() {
         _debug_print("Initializing hardware...");
         // TODO: Initialize real hardware in future phases
         // - Setup I2C for BNO055
-        // - Initialize motor PWM
         // - Configure camera
+        // - Setup servo PWM
     }
 
     _initialized = true;
@@ -87,30 +126,34 @@ bool NIKLABOTENTA::begin() {
 // ============================================
 
 void NIKLABOTENTA::drive(float speed, float rotation) {
-    if (!_initialized) {
+    if (!_initialized || !_drive_system) {
         _debug_print("ERROR: Not initialized. Call begin() first.");
         return;
     }
 
-    // Differential drive kinematics
-    // Left wheel = speed - rotation
-    // Right wheel = speed + rotation
-    _left_speed = speed - rotation;
-    _right_speed = speed + rotation;
-
     if (_debug_enabled) {
         char msg[64];
-        snprintf(msg, sizeof(msg), "Drive: speed=%.2f, rot=%.2f -> L=%.2f, R=%.2f",
-                 speed, rotation, _left_speed, _right_speed);
+        snprintf(msg, sizeof(msg), "Drive: speed=%.2f cm/s, rot=%.2f deg/s",
+                 speed, rotation);
         _debug_print(msg);
     }
 
-    // In simulation mode, just update internal state
-    // In real mode, send commands to motor controllers
+    // Convert rotation from deg/s to rad/s
+    float rotation_rad_s = rotation * DEG_TO_RAD;
+
+    // Use differential drive system
+    _drive_system->drive(speed, rotation_rad_s);
+
+    // Update internal state for compatibility
+    _left_speed = _drive_system->get_left_velocity();
+    _right_speed = _drive_system->get_right_velocity();
+
+    // Update drive system (important for PID and odometry)
+    _drive_system->update();
 }
 
 void NIKLABOTENTA::move(float distance, bool blocking) {
-    if (!_initialized) {
+    if (!_initialized || !_drive_system) {
         _debug_print("ERROR: Not initialized. Call begin() first.");
         return;
     }
@@ -122,24 +165,25 @@ void NIKLABOTENTA::move(float distance, bool blocking) {
         _debug_print(msg);
     }
 
-    // Simulate movement by updating position
-    float rad = _current_heading * DEG_TO_RAD;
-    _current_x += distance * cos(rad);
-    _current_y += distance * sin(rad);
+    // Use differential drive system
+    // Default speed: 10 cm/s
+    _drive_system->move_distance(distance, 10.0f, blocking);
 
-    // In real mode: calculate encoder ticks, set motor speeds, wait if blocking
-    if (blocking && _simulation_mode) {
-        // Simulate time to complete movement (assume 10 cm/s)
-        unsigned long delay_ms = abs(distance) * 100;  // ms = cm * 100
-        delay(delay_ms);
-    }
+    // Update pose from drive system
+    Pose pose = _drive_system->get_pose();
+    _current_x = pose.x;
+    _current_y = pose.y;
+    _current_heading = pose.theta * RAD_TO_DEG;  // Convert to degrees
+    _orientation = _current_heading;
+    _yaw = _current_heading;
 
-    // Stop after movement
-    stop();
+    // Update velocities
+    _left_speed = _drive_system->get_left_velocity();
+    _right_speed = _drive_system->get_right_velocity();
 }
 
 void NIKLABOTENTA::rotate(float degrees, bool blocking) {
-    if (!_initialized) {
+    if (!_initialized || !_drive_system) {
         _debug_print("ERROR: Not initialized. Call begin() first.");
         return;
     }
@@ -151,25 +195,30 @@ void NIKLABOTENTA::rotate(float degrees, bool blocking) {
         _debug_print(msg);
     }
 
-    // Update heading
-    _current_heading += degrees;
+    // Convert degrees to radians
+    float angle_rad = degrees * DEG_TO_RAD;
+
+    // Use differential drive system
+    // Default angular speed: PI/2 rad/s (90 deg/s)
+    _drive_system->rotate_angle(angle_rad, PI / 2.0f, blocking);
+
+    // Update pose from drive system
+    Pose pose = _drive_system->get_pose();
+    _current_x = pose.x;
+    _current_y = pose.y;
+    _current_heading = pose.theta * RAD_TO_DEG;  // Convert to degrees
 
     // Normalize to 0-360
     while (_current_heading >= 360.0f) _current_heading -= 360.0f;
     while (_current_heading < 0.0f) _current_heading += 360.0f;
 
-    // Update orientation (same as heading in simple case)
+    // Update orientation (same as heading)
     _orientation = _current_heading;
     _yaw = _current_heading;
 
-    // In real mode: calculate rotation speed, wait if blocking
-    if (blocking && _simulation_mode) {
-        // Simulate time to complete rotation (assume 90 deg/s)
-        unsigned long delay_ms = abs(degrees) * 11;  // ms = deg * 11
-        delay(delay_ms);
-    }
-
-    stop();
+    // Update velocities
+    _left_speed = _drive_system->get_left_velocity();
+    _right_speed = _drive_system->get_right_velocity();
 }
 
 void NIKLABOTENTA::brake() {
@@ -177,10 +226,12 @@ void NIKLABOTENTA::brake() {
         _debug_print("Brake");
     }
 
+    if (_drive_system) {
+        _drive_system->stop(true);  // Active braking
+    }
+
     _left_speed = 0.0f;
     _right_speed = 0.0f;
-
-    // In real mode: apply active braking to motors
 }
 
 void NIKLABOTENTA::stop() {
@@ -188,15 +239,22 @@ void NIKLABOTENTA::stop() {
         _debug_print("Stop");
     }
 
+    if (_drive_system) {
+        _drive_system->stop(false);  // Coast to stop
+    }
+
     _left_speed = 0.0f;
     _right_speed = 0.0f;
-
-    // In real mode: coast motors to stop
 }
 
 void NIKLABOTENTA::get_speed(float& left, float& right) {
-    left = _left_speed;
-    right = _right_speed;
+    if (_drive_system) {
+        left = _drive_system->get_left_velocity();
+        right = _drive_system->get_right_velocity();
+    } else {
+        left = _left_speed;
+        right = _right_speed;
+    }
 }
 
 // ============================================

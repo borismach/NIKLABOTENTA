@@ -12,10 +12,17 @@ Build your own Alvik-compatible robot with more powerful hardware:
 
 ## Features
 
+### Phase 2: Motor Control System ✅
+- **Differential Drive** - Full 2-wheel robot kinematics
+- **Encoder Integration** - Interrupt-based tick counting and odometry
+- **PID Speed Control** - Precise velocity regulation with anti-windup
+- **Simulation Mode** - Test without physical hardware
 - Alvik-compatible movement commands (`move()`, `rotate()`, `drive()`)
-- Enhanced IMU with quaternions and Euler angles
-- Camera-based line following and object detection
-- Servo and motor control
+
+### Planned Features
+- Enhanced IMU with quaternions and Euler angles (Phase 3)
+- Camera-based line following and object detection (Phase 4)
+- Servo control and LED management
 - Extensible architecture
 
 ## Hardware Requirements
@@ -27,6 +34,8 @@ Build your own Alvik-compatible robot with more powerful hardware:
 - (Optional) Servo motors
 
 ## Quick Start
+
+### Basic Movement
 ```cpp
 #include <NIKLABOTENTA.h>
 
@@ -42,6 +51,18 @@ void loop() {
     delay(1000);
 }
 ```
+
+### Advanced Motor Control
+```cpp
+// Differential drive with speed and rotation
+robot.drive(15.0, 30.0);  // 15 cm/s forward, 30 deg/s right turn
+
+// Get wheel velocities
+float left, right;
+robot.get_speed(left, right);
+```
+
+See [examples/](examples/) for more demonstrations.
 
 ## Documentation
 
