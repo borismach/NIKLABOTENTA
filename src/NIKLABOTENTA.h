@@ -2,7 +2,7 @@
  * @file NIKLABOTENTA.h
  * @brief Alvik-compatible robot library for Nicla Vision, Portenta H7, and BNO055 IMU
  * @author Boris Mach
- * @version 0.1.0
+ * @version 0.2.0
  *
  * This library provides an Alvik-compatible API for building custom robots using:
  * - Arduino Nicla Vision (camera, proximity sensor)
@@ -16,6 +16,7 @@
 #define NIKLABOTENTA_H
 
 #include <Arduino.h>
+#include "actuators/DifferentialDrive.h"
 
 /**
  * @brief Main robot control class
@@ -272,7 +273,14 @@ private:
     bool _debug_enabled;
     bool _simulation_mode;
 
-    // Movement state
+    // Motor control system
+    DifferentialDrive* _drive_system;
+
+    // Robot configuration
+    float _wheelbase_cm;
+    float _wheel_diameter_mm;
+
+    // Movement state (for compatibility)
     float _left_speed;
     float _right_speed;
     float _current_x;
