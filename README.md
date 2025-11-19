@@ -19,8 +19,15 @@ Build your own Alvik-compatible robot with more powerful hardware:
 - **Simulation Mode** - Test without physical hardware
 - Alvik-compatible movement commands (`move()`, `rotate()`, `drive()`)
 
+### Phase 3: BNO055 9-Axis IMU ✅
+- **Sensor Fusion** - Accelerometer + Gyroscope + Magnetometer integration
+- **Quaternion Output** - Gimbal lock-free orientation representation
+- **Euler Angles** - Roll, pitch, yaw in degrees
+- **Automatic Calibration** - Interactive calibration procedure
+- **Raw Sensor Access** - Direct access to all 9-axis data
+- **Magnetometer** - Absolute heading/compass functionality
+
 ### Planned Features
-- Enhanced IMU with quaternions and Euler angles (Phase 3)
 - Camera-based line following and object detection (Phase 4)
 - Servo control and LED management
 - Extensible architecture
@@ -60,6 +67,22 @@ robot.drive(15.0, 30.0);  // 15 cm/s forward, 30 deg/s right turn
 // Get wheel velocities
 float left, right;
 robot.get_speed(left, right);
+```
+
+### IMU Sensor Reading
+```cpp
+// Get orientation (Euler angles)
+float roll = robot.get_roll();      // tilt left/right
+float pitch = robot.get_pitch();    // tilt forward/back
+float heading = robot.get_yaw();    // compass direction (0-360°)
+
+// Get quaternion (no gimbal lock)
+float qw, qx, qy, qz;
+robot.get_quaternion(qw, qx, qy, qz);
+
+// Get raw sensor data
+float ax, ay, az, gx, gy, gz;
+robot.get_imu(ax, ay, az, gx, gy, gz);  // accel + gyro
 ```
 
 See [examples/](examples/) for more demonstrations.

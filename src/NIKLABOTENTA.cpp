@@ -2,13 +2,13 @@
  * @file NIKLABOTENTA.cpp
  * @brief Implementation of NIKLABOTENTA robot library
  * @author Boris Mach
- * @version 0.2.0
+ * @version 0.3.0
  */
 
 #include "NIKLABOTENTA.h"
 
 // Library version
-#define NIKLABOTENTA_VERSION "0.2.0"
+#define NIKLABOTENTA_VERSION "0.3.0"
 
 // Default robot configuration (can be customized)
 #define DEFAULT_WHEELBASE_CM 15.0f        // 15cm between wheels
@@ -23,6 +23,7 @@ NIKLABOTENTA::NIKLABOTENTA() :
     _debug_enabled(false),
     _simulation_mode(true),  // Default to simulation mode
     _drive_system(nullptr),
+    _imu(nullptr),
     _wheelbase_cm(DEFAULT_WHEELBASE_CM),
     _wheel_diameter_mm(DEFAULT_WHEEL_DIAMETER_MM),
     _left_speed(0.0f),
@@ -50,6 +51,9 @@ NIKLABOTENTA::NIKLABOTENTA() :
     _drive_system = new DifferentialDrive(_wheelbase_cm,
                                          _wheel_diameter_mm,
                                          _simulation_mode);
+
+    // Create IMU interface (default I2C address 0x28)
+    _imu = new BNO055_Interface(55, 0x28, _simulation_mode);
 }
 
 NIKLABOTENTA::~NIKLABOTENTA() {
@@ -59,6 +63,11 @@ NIKLABOTENTA::~NIKLABOTENTA() {
     if (_drive_system) {
         delete _drive_system;
         _drive_system = nullptr;
+    }
+
+    if (_imu) {
+        delete _imu;
+        _imu = nullptr;
     }
 }
 
@@ -97,9 +106,25 @@ bool NIKLABOTENTA::begin() {
         }
     }
 
-    // In simulation mode, just set the flag
-    // In real hardware mode, initialize actual components:
-    // - BNO055 IMU
+    // Initialize BNO055 IMU
+    if (_imu) {
+        _debug_print("Initializing BNO055 IMU...");
+        bool imu_init = _imu->begin();
+
+        if (!imu_init && !_simulation_mode) {
+            _debug_print("WARNING: BNO055 initialization failed");
+            // Continue anyway - IMU is optional
+        } else {
+            if (_simulation_mode) {
+                _debug_print("BNO055 initialized (simulation mode)");
+            } else {
+                _debug_print("BNO055 initialized successfully");
+            }
+        }
+    }
+
+    // In simulation mode, set calibration
+    // In real hardware mode, additional components to initialize:
     // - Nicla Vision camera
     // - Servo controllers
     // - LED controllers
@@ -110,7 +135,6 @@ bool NIKLABOTENTA::begin() {
     } else {
         _debug_print("Initializing hardware...");
         // TODO: Initialize real hardware in future phases
-        // - Setup I2C for BNO055
         // - Configure camera
         // - Setup servo PWM
     }
@@ -262,63 +286,126 @@ void NIKLABOTENTA::get_speed(float& left, float& right) {
 // ============================================
 
 float NIKLABOTENTA::get_orientation() {
-    // In simulation, return current heading
-    // In real mode, read from BNO055
-    return _orientation;
+    if (_imu) {
+        // Update IMU readings
+        _imu->update();
+
+        // Get heading in degrees (0-360)
+        _orientation = _imu->get_heading_degrees();
+        _yaw = _orientation;  // Update yaw as well
+
+        return _orientation;
+    }
+
+    // Fallback to odometry-based heading
+    return _current_heading;
 }
 
 float NIKLABOTENTA::get_roll() {
-    // In simulation, return simulated roll
-    // In real mode, read from BNO055
-    return _roll;
+    if (_imu) {
+        _imu->update();
+
+        // Get Euler angles in degrees
+        float roll_deg, pitch_deg, yaw_deg;
+        _imu->get_euler_degrees(roll_deg, pitch_deg, yaw_deg);
+
+        _roll = roll_deg;
+        return _roll;
+    }
+
+    return 0.0f;  // No roll without IMU
 }
 
 float NIKLABOTENTA::get_pitch() {
-    // In simulation, return simulated pitch
-    // In real mode, read from BNO055
-    return _pitch;
+    if (_imu) {
+        _imu->update();
+
+        // Get Euler angles in degrees
+        float roll_deg, pitch_deg, yaw_deg;
+        _imu->get_euler_degrees(roll_deg, pitch_deg, yaw_deg);
+
+        _pitch = pitch_deg;
+        return _pitch;
+    }
+
+    return 0.0f;  // No pitch without IMU
 }
 
 float NIKLABOTENTA::get_yaw() {
-    // In simulation, return current heading
-    // In real mode, read from BNO055
-    return _yaw;
+    return get_orientation();  // Yaw is same as orientation
 }
 
 void NIKLABOTENTA::get_imu(float& ax, float& ay, float& az,
                            float& gx, float& gy, float& gz) {
-    // In simulation, return simulated values
+    if (_imu) {
+        _imu->update();
+
+        // Get acceleration (m/s²)
+        Vector3 accel = _imu->get_acceleration();
+        ax = accel.x;
+        ay = accel.y;
+        az = accel.z;
+
+        // Get gyroscope (rad/s)
+        Vector3 gyro = _imu->get_gyroscope();
+        gx = gyro.x;
+        gy = gyro.y;
+        gz = gyro.z;
+
+        return;
+    }
+
+    // Fallback: simulated values
     ax = 0.0f;
     ay = 0.0f;
     az = 9.81f;  // Gravity
     gx = 0.0f;
     gy = 0.0f;
     gz = 0.0f;
-
-    // In real mode, read from BNO055 accelerometer and gyroscope
 }
 
 void NIKLABOTENTA::get_quaternion(float& w, float& x, float& y, float& z) {
-    // In simulation, return identity quaternion
+    if (_imu) {
+        _imu->update();
+
+        // Get quaternion from BNO055 sensor fusion
+        Quaternion q = _imu->get_quaternion();
+        w = q.w;
+        x = q.x;
+        y = q.y;
+        z = q.z;
+
+        return;
+    }
+
+    // Fallback: identity quaternion
     w = 1.0f;
     x = 0.0f;
     y = 0.0f;
     z = 0.0f;
-
-    // In real mode, read quaternion from BNO055 (fusion output)
 }
 
 void NIKLABOTENTA::get_magnetometer(float& mx, float& my, float& mz) {
-    // In simulation, return simulated magnetic field
+    if (_imu) {
+        _imu->update();
+
+        // Get magnetometer data (µT)
+        Vector3 mag = _imu->get_magnetometer();
+        mx = mag.x;
+        my = mag.y;
+        mz = mag.z;
+
+        return;
+    }
+
+    // Fallback: simulated magnetic field
     mx = 30.0f;  // µT (approximate Earth's field)
     my = 0.0f;
     mz = 40.0f;
-
-    // In real mode, read from BNO055 magnetometer
 }
 
 bool NIKLABOTENTA::calibrate_imu() {
-    if (!_initialized) {
+    if (!_initialized || !_imu) {
         return false;
     }
 
@@ -332,12 +419,44 @@ bool NIKLABOTENTA::calibrate_imu() {
         return true;
     }
 
-    // In real mode, perform BNO055 calibration procedure
-    // This involves reading calibration status and waiting
+    // In real mode, BNO055 calibrates automatically
+    // Just wait for full calibration
+    _debug_print("Waiting for BNO055 calibration...");
+    _debug_print("Move the sensor in figure-8 pattern for magnetometer calibration");
+
+    unsigned long start_time = millis();
+    unsigned long timeout = 60000;  // 60 second timeout
+
+    while (millis() - start_time < timeout) {
+        _imu->update();
+
+        if (_imu->is_fully_calibrated()) {
+            _debug_print("BNO055 fully calibrated!");
+            _imu_calibration = 3;
+            return true;
+        }
+
+        // Print calibration status periodically
+        if ((millis() - start_time) % 2000 == 0) {
+            CalibrationStatus status = _imu->get_calibration_status();
+            char msg[64];
+            snprintf(msg, sizeof(msg), "Cal: Sys=%d Gyro=%d Accel=%d Mag=%d",
+                     status.system, status.gyro, status.accel, status.mag);
+            _debug_print(msg);
+        }
+
+        delay(100);
+    }
+
+    _debug_print("WARNING: Calibration timeout");
     return false;
 }
 
 uint8_t NIKLABOTENTA::get_imu_calibration_status() {
+    if (_imu) {
+        _imu_calibration = _imu->get_calibration_level();
+    }
+
     return _imu_calibration;
 }
 
